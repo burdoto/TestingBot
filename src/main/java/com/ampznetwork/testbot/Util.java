@@ -1,22 +1,22 @@
 package com.ampznetwork.testbot;
 
-import java.awt.*;
-import java.awt.font.FontRenderContext;
-import java.awt.font.TextAttribute;
-import java.awt.font.TextLayout;
-import java.awt.image.BufferedImage;
-import java.io.*;
-import java.net.URL;
-import java.text.AttributedCharacterIterator;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import javax.imageio.ImageIO;
-
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.Style;
-import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.text.AttributedString;
+import java.util.Objects;
+import java.util.Optional;
+
+import static java.awt.font.TextAttribute.*;
 
 public class Util {
     private static final Font          font;
@@ -31,7 +31,7 @@ public class Util {
                 var imageResource = Util.class.getResourceAsStream("Background.png");
                 var imageFallback = imageResource != null
                                     ? null
-                                    : new URL("https://github.com/burdoto/TestingBot/raw/master/src/main/resources/Background.png").openStream();
+                                    : new URL("https://github.com/burdoto/TestingBot/raw/master/src/main/resources/Background.png").openStream()
         ) {
             // Load font
             font = Font.createFont(Font.TRUETYPE_FONT, Objects.requireNonNullElse(fontResource, fontFallback));
@@ -48,9 +48,9 @@ public class Util {
         }
     }
 
-    public static InputStream component2img(Component component) {
-        int width  = backgroundImage.getWidth();  // Use the background image width
-        int height = backgroundImage.getHeight(); // Use the background image height
+    public static InputStream component2img(TextComponent component) {
+        int width  = backgroundImage.getWidth();
+        int height = backgroundImage.getHeight() / 4;
 
         // Create a new BufferedImage to draw on
         BufferedImage bufferedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
@@ -67,8 +67,22 @@ public class Util {
         Font originalFont = font.deriveFont(Font.PLAIN, 48);  // Increase font size as needed
         g2d.setFont(originalFont);
 
-        // Apply text styling
-        applyStyledText(g2d, component, width, height);
+        // Create an AttributedString based on the Kyori Adventure Component
+        AttributedString attributedString = buildAttributedStringFromComponent(component);
+        attributedString.addAttribute(FONT, originalFont);
+
+        // Calculate text dimensions
+        FontMetrics metrics    = g2d.getFontMetrics(originalFont);
+        var         iterator   = attributedString.getIterator();
+        int         textWidth  = iterator.getEndIndex() - iterator.getBeginIndex();
+        int         textHeight = metrics.getHeight();
+
+        // Center text horizontally and vertically
+        int x = 50;//(width - textWidth) / 3;
+        int y = (height - textHeight) / 2 + metrics.getAscent();
+
+        // Draw the styled text
+        g2d.drawString(attributedString.getIterator(), x, y);
 
         // Dispose of the Graphics2D object
         g2d.dispose();
@@ -91,42 +105,46 @@ public class Util {
         return inputStream;
     }
 
-    private static void applyStyledText(Graphics2D g2d, Component component, int width, int height) {
-        // Extract text and styles from the Kyori Adventure Component
-        String text = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(component);
+    private static AttributedString buildAttributedStringFromComponent(TextComponent component) {
+        var plainText        = PlainTextComponentSerializer.plainText().serialize(component);
+        var attributedString = new AttributedString(plainText);
+        appendStyle(attributedString, component, new int[]{ 0 });
+        return attributedString;
+    }
 
-        // Text layout for better control over positioning and styling
-        FontRenderContext frc    = g2d.getFontRenderContext();
-        TextLayout        layout = new TextLayout(text, g2d.getFont(), frc);
+    private static void appendStyle(AttributedString str, TextComponent component, int[] offset) {
+        int len   = component.content().length(), end = offset[0] + len;
+        var style = component.style();
 
-        // Center text horizontally and vertically
-        int textWidth  = (int) layout.getBounds().getWidth();
-        int textHeight = (int) layout.getBounds().getHeight();
-        int x          = (width - textWidth) / 2;
-        int y          = (int) ((float) (height - textHeight) / 2 + layout.getAscent());
+        if (len > 0) {
+            var color = Optional.ofNullable(style.color())
+                    .map(textColor -> new Color(textColor.value()))
+                    .orElse(Color.WHITE);
+            str.addAttribute(FOREGROUND, color, offset[0], end);
 
-        // Apply styles
-        Style     style     = component.style();
-        TextColor textColor = style.color();
-
-        // Convert textColor to Color with opaque alpha
-        Color awtColor = textColor != null ? new Color(textColor.value()) : Color.WHITE;
-        g2d.setColor(awtColor);
-
-        // Apply bold and italic
-        Map<AttributedCharacterIterator.Attribute, Object> attributes = new HashMap<>();
-        if (style.hasDecoration(TextDecoration.BOLD)) {
-            attributes.put(TextAttribute.WEIGHT, TextAttribute.WEIGHT_BOLD);
+            for (var decor : TextDecoration.values())
+                if (decor != TextDecoration.OBFUSCATED && style.hasDecoration(decor))
+                    str.addAttribute(
+                            switch (decor) {
+                                case BOLD -> WEIGHT;
+                                case STRIKETHROUGH -> STRIKETHROUGH;
+                                case UNDERLINED -> UNDERLINE;
+                                case ITALIC -> POSTURE;
+                                default -> throw new IllegalStateException("Unexpected value: " + decor);
+                            },
+                            switch (decor) {
+                                case BOLD -> WEIGHT_BOLD;
+                                case STRIKETHROUGH -> STRIKETHROUGH_ON;
+                                case UNDERLINED -> UNDERLINE_ON;
+                                case ITALIC -> POSTURE_OBLIQUE;
+                                default -> throw new IllegalStateException("Unexpected value: " + decor);
+                            },
+                            offset[0], end);
         }
-        if (style.hasDecoration(TextDecoration.ITALIC)) {
-            attributes.put(TextAttribute.POSTURE, TextAttribute.POSTURE_OBLIQUE);
-        }
-        if (style.hasDecoration(TextDecoration.UNDERLINED)) {
-            attributes.put(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON);
-        }
 
-        // Draw the styled text
-        g2d.setFont(g2d.getFont().deriveFont(attributes));
-        g2d.drawString(text, x, y);
+        offset[0] += len;
+        for (var child : component.children())
+            if (child instanceof TextComponent txt)
+                appendStyle(str, txt, offset);
     }
 }
