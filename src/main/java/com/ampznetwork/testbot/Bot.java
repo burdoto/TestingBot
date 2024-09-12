@@ -30,7 +30,7 @@ import java.util.UUID;
 import static org.easymock.EasyMock.*;
 
 public class Bot implements EventListener {
-    private static final String FORMAT = "[%server_name%] <%player_name%> %message%";
+    private static final String FORMAT = "%message%";
     private static Bot INSTANCE;
 
     public static void main(String[] args) {
@@ -51,7 +51,7 @@ public class Bot implements EventListener {
             //var string    = "&cThis is red and &nthis is only underlined. **Google is at https://google.com**";
             var string = raw.substring("!format ".length());
             var result = format(string);
-            event.getMessage().reply(MessageCreateData.fromFiles(FileUpload.fromData(Util.component2img(result),"text"))).queue();
+            event.getMessage().reply(MessageCreateData.fromFiles(FileUpload.fromData(Util.component2img(result),"text.png"))).queue();
         });
 
         this.jda = JDABuilder.createDefault(token).enableIntents(GatewayIntent.MESSAGE_CONTENT).build();
@@ -71,7 +71,7 @@ public class Bot implements EventListener {
     @Command
     public static TextComponent format(@Command.Arg(stringMode = StringMode.GREEDY) String string) {
         var sender    = Player.builder().id(UUID.randomUUID()).name("Steve").build();
-        var formatter = ChatMessageFormatter.builder().build();
+        var formatter = ChatMessageFormatter.builder().format(FORMAT).build();
 
         IPlayerAdapter playerAdapter = mock(IPlayerAdapter.class);
         expect(playerAdapter.getPlayer(sender.getId())).andReturn(Optional.of(sender)).anyTimes();

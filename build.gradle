@@ -24,6 +24,7 @@ dependencies {
 
     implementation 'net.dv8tion:JDA:5.1.0'
     implementation 'net.kyori:adventure-text-serializer-gson:4.14.0'
+    implementation 'net.kyori:adventure-text-serializer-plain:4.14.0'
     implementation 'org.easymock:easymock:+'
 
     // lombok
