@@ -64,7 +64,7 @@ public class Util {
         g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
         // Set the font to be twice as large
-        Font originalFont = font.deriveFont(Font.PLAIN, 48);  // Increase font size as needed
+        Font originalFont = font.deriveFont(Font.PLAIN, 32);  // Increase font size as needed
         g2d.setFont(originalFont);
 
         // Create an AttributedString based on the Kyori Adventure Component

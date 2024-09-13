@@ -21,6 +21,7 @@ import net.kyori.adventure.util.TriState;
 import org.comroid.api.func.util.Command;
 import org.comroid.api.func.util.Event;
 import org.comroid.api.io.FileHandle;
+import org.comroid.api.java.StackTraceUtils;
 import org.comroid.api.text.StringMode;
 
 import java.util.Arrays;
@@ -44,10 +45,11 @@ public class Bot implements EventListener {
 
         IPlayerAdapter playerAdapter = mock(IPlayerAdapter.class);
         expect(playerAdapter.getPlayer(sender.getId())).andReturn(Optional.of(sender)).anyTimes();
-        Arrays.stream(TextDecoration.values())
-                .map(Enum::name)
-                .map(String::toLowerCase)
-                .forEach(str -> expect(playerAdapter.checkPermission(sender.getId(), "chatmod.format." + str)).andReturn(TriState.TRUE).anyTimes());
+        expect(playerAdapter.checkPermission(sender.getId(), "chatmod.format.bold")).andReturn(TriState.TRUE).anyTimes();
+        expect(playerAdapter.checkPermission(sender.getId(), "chatmod.format.italic")).andReturn(TriState.TRUE).anyTimes();
+        expect(playerAdapter.checkPermission(sender.getId(), "chatmod.format.underline")).andReturn(TriState.TRUE).anyTimes();
+        expect(playerAdapter.checkPermission(sender.getId(), "chatmod.format.strikethrough")).andReturn(TriState.TRUE).anyTimes();
+        expect(playerAdapter.checkPermission(sender.getId(), "chatmod.format.hidden_links")).andReturn(TriState.TRUE).anyTimes();
         LibMod lib = mock(LibMod.class);
         expect(lib.getPlayerAdapter()).andReturn(playerAdapter).anyTimes();
         ChatMod mod = mock(ChatMod.class);
@@ -70,15 +72,19 @@ public class Bot implements EventListener {
     public Bot(String token) {
         this.bus = new Event.Bus<>();
         bus.flatMap(MessageReceivedEvent.class).subscribeData(event -> {
-            var raw = event.getMessage().getContentRaw();
-            if (!raw.startsWith("!format"))
-                return;
+            try {
+                var raw = event.getMessage().getContentRaw();
+                if (!raw.startsWith("!format"))
+                    return;
 
-            //var string    = "&cThis is red and &nthis is only underlined. **Google is at https://google.com**";
-            var string = raw.substring("!format ".length());
-            var result = format(string);
-            var json   = GsonComponentSerializer.gson().serialize(result);
-            event.getMessage().reply("```json\n" + json + "```").addFiles(FileUpload.fromData(Util.component2img(result), "text.png")).queue();
+                //var string    = "&cThis is red and &nthis is only underlined. **Google is at https://google.com**";
+                var string = raw.substring("!format ".length());
+                var result = format(string);
+                var json   = GsonComponentSerializer.gson().serialize(result);
+                event.getMessage().reply("```json\n" + json + "\n```").addFiles(FileUpload.fromData(Util.component2img(result), "text.png")).queue();
+            } catch (Throwable t) {
+                event.getMessage().reply("```\n" + StackTraceUtils.toString(t) + "\n```");
+            }
         });
 
         this.jda = JDABuilder.createDefault(token).enableIntents(GatewayIntent.MESSAGE_CONTENT).build();
